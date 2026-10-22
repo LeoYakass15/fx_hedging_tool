@@ -76,7 +76,6 @@ vba/
   modStrategies.bas  forward, option, collar, participating forward, TARF payoffs; bisection solvers
   modMonteCarlo.bas  antithetic log-normal paths, TARF pricing and zero-cost strike
   modMain.bas        buttons: SolveZeroCost, RunMonteCarlo, PriceAll, SetDefaultStrike
-tools/               Python scripts that assemble the .xlsm from vba/ (layout, charts, VBA project)
 ```
 
 The `.bas` files are the source code. You can also import them into any workbook from the VBA
@@ -102,4 +101,3 @@ editor (File > Import File).
   points are a carry cost, not a forecast). Pricing always uses the risk-neutral forward.
 - **Random numbers**: MRG32k3a with antithetic variates, so the same seed gives the same
   results on every machine and Excel version.
-
