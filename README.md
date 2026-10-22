@@ -67,34 +67,3 @@ The workbook writes this as a one-page client pitch that updates when the inputs
 
 ![Pitch sheet](docs/pitch.png)
 
-## How the workbook works
-
-| Sheet | What you find |
-|---|---|
-| Pricer | client inputs, comparison of the five solutions, scenario chart |
-| Pitch | one-page proposal for the treasurer, ready to print |
-| Schedule | month-by-month pricing: forward rate, discount factors, volatility, option prices |
-| Scenarios | the rate the client gets with each solution if EURUSD moves from -15% to +15% |
-| Distribution | all simulated outcomes, from best to worst |
-| Market | rates, volatilities and smile, editable |
-| Notes | conventions and method |
-
-To use it, download `FX_Hedging_Tool.xlsm`, enable macros, and change the yellow cells
-(amount, months, budget, spot, strikes, importer or exporter). The forward, option, collar and
-participating forward reprice instantly. Two buttons do the rest:
-
-- **Solve zero-cost strikes** finds the strikes that make each structure free for the client.
-- **Run Monte Carlo** simulates 20,000 paths of EURUSD to price the TARF and compute the
-  statistics.
-
-## Method, in short
-
-- **Forward rates** come from the interest rate differential between EUR and USD.
-- **Options** are priced with Garman-Kohlhagen (Black-Scholes for FX), using the volatility
-  smile quoted by the market (ATM, risk reversal, butterfly), so each strike gets its own vol.
-- **Zero-cost structures** are solved so that what the client buys and what the client sells
-  have the same value.
-- **The TARF** depends on the whole path of EURUSD, so it is priced by Monte Carlo.
-- **Statistics** assume EURUSD stays where it is on average, which is how a desk usually
-  presents outcomes to a client.
-
