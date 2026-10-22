@@ -103,17 +103,3 @@ editor (File > Import File).
 - **Random numbers**: MRG32k3a with antithetic variates, so the same seed gives the same
   results on every machine and Excel version.
 
-## Limitations
-
-- The TARF is priced without the smile. A local-vol model would move its zero-cost strike by
-  tens of pips.
-- Rates are deterministic and there is no business-day calendar.
-- Zero-cost means zero-cost mid-market: no CVA or capital charge.
-- The market data is illustrative.
-
-## Rebuilding the workbook
-
-The workbook is generated from the `.bas` files by `tools/build_workbook.py` (XlsxWriter and
-the `ms_ovba` package, with a spec-compliant MS-OVBA compressor in `tools/ovba_compress.py`).
-The macros were tested by running them in LibreOffice. Their results match the Python
-implementation.
