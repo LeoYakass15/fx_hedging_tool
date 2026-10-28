@@ -8,12 +8,13 @@ Attribute VB_Name = "modStrategies"
 ' Unhedged value of a fixing = phi * N / S (EUR received, or minus EUR paid).
 ' Mid value to the client = sum_i DF_USD(t_i) / S0 * E_Q[ gain_i * S_i ].
 '
-' Strategy codes: 1 Unhedged, 2 Forward, 3 Vanilla option, 4 Zero-cost collar,
-'                 5 Participating forward, 6 TARF
+' Strategy codes (same order as the Pricer table):
+'   1 Unhedged, 2 Forward, 3 Vanilla option, 4 Average rate option, 5 Zero-cost collar,
+'   6 Seagull, 7 Participating forward, 8 TARF
 '==============================================================================
 Option Explicit
 
-Public Const N_STRAT As Long = 6
+Public Const N_STRAT As Long = 8
 
 ' Deal state (filled by SetupDeal)
 Public gPhi As Double            ' +1 receivable (exporter), -1 payable (importer)
@@ -26,6 +27,7 @@ Public gBudget As Double
 Public gMarginEUR As Double      ' sales margin in EUR (zero-cost structures)
 Public gFwdRate() As Double      ' forward strip rates incl. margin
 Public gProtect As Double, gGiveup As Double
+Public gSgCap As Double, gSgGiveup As Double  ' seagull: protection stops at gSgCap
 Public gPFStrike As Double, gPart As Double
 Public gTarfK As Double, gTarfTarget As Double, gLev As Double, gExactKO As Boolean
 Public gPremium As Double        ' option premium, EUR
@@ -46,6 +48,8 @@ Public Sub SetupDeal()
     marginBp = CDbl(NamedValue("MarginBp"))
     gProtect = CDbl(NamedValue("Protect"))
     gGiveup = CDbl(NamedValue("Giveup"))
+    gSgCap = CDbl(NamedValue("SgCap"))
+    gSgGiveup = CDbl(NamedValue("SgGiveup"))
     gPFStrike = CDbl(NamedValue("PFStrike"))
     gTarfK = CDbl(NamedValue("TarfStrike"))
     ReDim gT(1 To gNFix): ReDim gF(1 To gNFix): ReDim gDFd(1 To gNFix): ReDim gFwdRate(1 To gNFix)
@@ -59,7 +63,7 @@ Public Sub SetupDeal()
     ' margin: bp of the total home-currency notional; on the forward, bp of the rate
     gMarginEUR = marginBp * 0.0001 * gN * gNFix / mSpot
     For i = 1 To gNFix
-        gFwdRate(i) = gF(i) - gPhi * marginBp * 0.0001 * gFbar
+        gFwdRate(i) = gF(i) + gPhi * marginBp * 0.0001 * gFbar
     Next i
 End Sub
 
@@ -80,15 +84,23 @@ Public Function CollarPV(ByVal kProt As Double, ByVal kGive As Double) As Double
     CollarPV = StripOptionEUR(kProt, ProtectIsCall(), gN) - StripOptionEUR(kGive, Not ProtectIsCall(), gN)
 End Function
 
+' Seagull = buy the protection, sell the same option further out (protection stops
+' there) and sell the opposite option (give-up of the favourable move)
+Public Function SeagullPV(ByVal kGive As Double) As Double
+    SeagullPV = StripOptionEUR(gProtect, ProtectIsCall(), gN) - StripOptionEUR(gSgCap, ProtectIsCall(), gN) _
+              - StripOptionEUR(kGive, Not ProtectIsCall(), gN)
+End Function
+
 Public Function PFPV(ByVal K As Double, ByVal part As Double) As Double
     PFPV = StripOptionEUR(K, ProtectIsCall(), gN) - StripOptionEUR(K, Not ProtectIsCall(), (1# - part) * gN)
 End Function
 
-' Bisection root finder on f(x) = target. which: 1 collar give-up, 2 PF strike
+' Bisection root finder on f(x) = target. which: 1 collar give-up, 2 PF strike, 3 seagull give-up
 Private Function EvalStrike(ByVal which As Long, ByVal x As Double) As Double
     Select Case which
         Case 1: EvalStrike = CollarPV(gProtect, x) + gMarginEUR
         Case 2: EvalStrike = PFPV(x, gPart) + gMarginEUR
+        Case 3: EvalStrike = SeagullPV(x) + gMarginEUR
     End Select
 End Function
 
@@ -122,6 +134,18 @@ Public Function SolveCollarGiveup(ok As Boolean) As Double
     SolveCollarGiveup = Bisect(1, lo, hi, ok)
 End Function
 
+Public Function SolveSeagullGiveup(ok As Boolean) As Double
+    Dim lo As Double, hi As Double
+    If gPhi > 0 Then
+        lo = 0.5 * gFbar
+        hi = gProtect * 0.99999
+    Else
+        lo = gProtect * 1.00001
+        hi = 2# * gFbar
+    End If
+    SolveSeagullGiveup = Bisect(3, lo, hi, ok)
+End Function
+
 Public Function SolvePFStrike(ok As Boolean) As Double
     SolvePFStrike = Bisect(2, 0.7 * gFbar, 1.3 * gFbar, ok)
 End Function
@@ -138,10 +162,14 @@ Public Function LegGain(ByVal code As Long, ByVal S As Double, ByVal i As Long, 
             g = ph * gN * (1# / gFwdRate(i) - 1# / S)
         Case 3
             If ph * (S - gProtect) > 0 Then g = ph * gN * (1# / gProtect - 1# / S)
-        Case 4
+        Case 5
             If ph * (S - gProtect) > 0 Then g = g + ph * gN * (1# / gProtect - 1# / S)
             If ph * (gGiveup - S) > 0 Then g = g + ph * gN * (1# / gGiveup - 1# / S)
-        Case 5
+        Case 6
+            If ph * (S - gProtect) > 0 Then g = g + ph * gN * (1# / gProtect - 1# / S)
+            If ph * (S - gSgCap) > 0 Then g = g - ph * gN * (1# / gSgCap - 1# / S)
+            If ph * (gSgGiveup - S) > 0 Then g = g + ph * gN * (1# / gSgGiveup - 1# / S)
+        Case 7
             If ph * (S - gPFStrike) > 0 Then
                 g = ph * gN * (1# / gPFStrike - 1# / S)
             Else

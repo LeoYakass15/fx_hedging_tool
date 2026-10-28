@@ -2,10 +2,10 @@ Attribute VB_Name = "modMain"
 '==============================================================================
 ' modMain - buttons of the Pricer sheet
 '
-' Pricing of the vanilla structures is done by live worksheet formulas (Schedule
+' Pricing of the vanilla structures (incl. the average rate option and the seagull) is done by live worksheet formulas (Schedule
 ' sheet, Pricer table, Scenarios grid). VBA only does what a formula cannot:
-'   SolveZeroCost     solves the zero-cost strikes (collar give-up, participating
-'                     forward, TARF) and writes them into the strike cells
+'   SolveZeroCost     solves the zero-cost strikes (collar give-up, seagull give-up,
+'                     participating forward, TARF) and writes them into the strike cells
 '   RunMonteCarlo     TARF mid value at the current strike + outcome statistics
 '   PriceAll          both of the above
 '   SetDefaultStrike  protection strike = budget if out-of-the-money, else fwd +/- 2.5%
@@ -45,6 +45,8 @@ Public Sub SetDefaultStrike()
     Else
         NamedCell("Protect").Value = Round(gFbar * (1# + 0.025 * gPhi), 4)
     End If
+    ' seagull: protection stops 5 big figures beyond the protection strike
+    NamedCell("SgCap").Value = Round(CDbl(NamedValue("Protect")) + 0.05 * gPhi, 4)
 End Sub
 
 Public Sub PriceAll()
@@ -81,6 +83,8 @@ Private Function DoSolve() As String
     SetupDeal
     k = SolveCollarGiveup(ok)
     If ok Then NamedCell("Giveup").Value = Round(k, 6) Else msg = msg & "no zero-cost collar; "
+    k = SolveSeagullGiveup(ok)
+    If ok Then NamedCell("SgGiveup").Value = Round(k, 6) Else msg = msg & "no zero-cost seagull; "
     k = SolvePFStrike(ok)
     If ok Then NamedCell("PFStrike").Value = Round(k, 6) Else msg = msg & "no zero-cost participating fwd; "
     SimulatePaths S, CLng(NamedValue("NPaths")), CLng(NamedValue("Seed")), True
@@ -103,14 +107,23 @@ End Function
 ' Achieved average rate (premium included) of strategy `code` on path p of S
 Private Function PathRate(S() As Double, ByVal p As Long, ByVal code As Long, ByVal premFV As Double, _
                           overHedged As Boolean) As Double
-    Dim i As Long, v As Double, ov As Double, c As Double, ko As Long, nl As Long, mo As Double
+    Dim i As Long, v As Double, ov As Double, c As Double, ko As Long, nl As Long, mo As Double, avg As Double
     overHedged = False
     For i = 1 To gNFix
         v = v + gPhi * gN / S(p, i)
     Next i
-    If code = 6 Then
+    If code = 8 Then
         v = v + TarfPath(S, p, gTarfK, c, ko, nl, mo)
         overHedged = (mo > 0)
+    ElseIf code = 4 Then
+        ' average rate option: one payoff on the average of the fixings, paid at the end
+        avg = 0
+        For i = 1 To gNFix
+            avg = avg + S(p, i) / gNFix
+        Next i
+        If gPhi * (avg - gProtect) > 0 Then
+            v = v + gN * gNFix / gProtect * gPhi * (avg - gProtect) / S(p, gNFix)
+        End If
     Else
         For i = 1 To gNFix
             v = v + LegGain(code, S(p, i), i, ov)
@@ -127,7 +140,7 @@ Private Function DoMonteCarlo() As String
     Dim code As Long, p As Long, j As Long
     Dim rates() As Double, oh As Boolean, nOver As Long, nWorse As Long, sumR As Double
     Dim premFV As Double, tAvg As Double
-    Dim res(1 To 6, 1 To 5) As Variant
+    Dim res(1 To 8, 1 To 5) As Variant
     Dim dist() As Variant, q As Double
     Dim c As Double, ko As Long, nl As Long, mo As Double
     Dim nKO As Long, sumLife As Double, nAnyLev As Long, sumLev As Double
@@ -163,6 +176,7 @@ Private Function DoMonteCarlo() As String
     For code = 1 To N_STRAT
         premFV = 0
         If code = 3 Then premFV = gPremium / DFFor(tAvg)
+        If code = 4 Then premFV = CDbl(NamedValue("ApoPremium")) / DFFor(tAvg)
         ReDim rates(1 To nP)
         nOver = 0: nWorse = 0: sumR = 0
         For p = 1 To nP
@@ -200,7 +214,7 @@ Private Function DoMonteCarlo() As String
     Next p
     Erase S
 
-    NamedCell("McTop").Resize(6, 5).Value = res
+    NamedCell("McTop").Resize(N_STRAT, 5).Value = res
     With NamedCell("TarfTop")
         .Offset(0, 0).Value = nKO / nP
         .Offset(1, 0).Value = sumLife / nP

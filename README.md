@@ -22,13 +22,15 @@ the treasurer can act on. Everything is built in one Excel workbook.
 Doing nothing is not neutral. In our simulations, the unhedged company misses its budget in
 **38% of scenarios**, and in the worst 5% it ends up with an average rate of 1.2549.
 
-## The five solutions a sales would pitch
+## The seven solutions a sales would pitch
 
 | Solution | Idea for the client | Cost |
 |---|---|---|
 | **Forward** | Fix the rate today for every month | Free, but no upside |
-| **Vanilla option** | Insurance: protected at 1.1800, keep all the upside | Premium paid upfront |
+| **Vanilla option** | Insurance: protected at 1.1800 each month, keep all the upside | Premium paid upfront |
+| **Average rate option** | Same insurance, but on the average rate of the 12 months, settled once at the end | Lower premium |
 | **Zero-cost collar** | Protected at 1.1800, upside kept down to a second strike | Free, upside is capped |
+| **Seagull** | A collar that also sells protection beyond a third strike, to get a better upside | Free, protection stops beyond 1.2300 |
 | **Participating forward** | Protected at a worse rate, keep 50% of the upside | Free |
 | **TARF** | Much better rate, but stops after a target gain and doubles the amount on bad fixings | Free, but risky |
 
@@ -39,7 +41,9 @@ Doing nothing is not neutral. In our simulations, the unhedged company misses it
 | No hedge | | 0 | 1.1637 | 1.2549 | 1.0756 | 38% |
 | Forward | 1.1743 | 0 | 1.1742 | 1.1742 | 1.1742 | 0% |
 | Vanilla option | 1.1800 | 197,551 | 1.1678 | 1.2036 | 1.0951 | 49% |
+| Average rate option | 1.1800 | 164,816 | 1.1675 | 1.2011 | 1.0919 | 51% |
 | Zero-cost collar | 1.1800 / 1.1689 | 0 | 1.1736 | 1.1800 | 1.1689 | 0% |
+| Seagull | 1.1800 / 1.1459 / 1.2300 | 0 | 1.1687 | 1.2133 | 1.1459 | 23% |
 | Participating forward | 1.1926, 50% | 0 | 1.1705 | 1.1922 | 1.1311 | 42% |
 | TARF | 1.1245, 1,000 pips, 2x | 0 | 1.1684 | 1.2434 | 1.1073 | 35% |
 
@@ -52,8 +56,17 @@ For an exporter, a **lower rate is better** (more euros for each dollar).
 - **The option keeps all the upside, but the premium hurts.** EUR 198k paid upfront pushes the
   worst case to 1.2036, above the budget. It suits a client who strongly believes EURUSD will
   fall.
+- **The average rate option is the smarter option for regular flows.** It protects the
+  average rate of the year rather than each month, which is what the treasurer reports. It
+  costs EUR 165k, 17% less than twelve monthly options, because an average moves less than a
+  single fixing.
 - **The zero-cost collar is the best fit for this client.** No premium, the budget is the worst
   case, and the company still benefits if EURUSD falls to 1.1689.
+- **The seagull gives a better upside than the collar, for a hidden risk.** By also selling
+  protection above 1.2300, the client keeps the benefit of a fall down to 1.1459 instead of
+  1.1689. But if EURUSD goes beyond 1.2300 the protection stops: in the worst 5% of scenarios
+  the rate is 1.2133, above the budget. It suits a client who thinks a very large rise is
+  unlikely.
 - **The TARF looks very attractive, but it is a product for experienced clients only.** Its
   strike is almost 500 pips better than the forward. But it stops after 1,000 pips of gains
   (84% of the time, after about 5 months), which leaves the rest of the year unhedged. And if
@@ -66,4 +79,3 @@ My recommendation: hedge most of the flows with the **collar**, and possibly par
 The workbook writes this as a one-page client pitch that updates when the inputs change:
 
 ![Pitch sheet](docs/pitch.png)
-
